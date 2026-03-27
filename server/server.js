@@ -15,15 +15,27 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Allow both React dev servers (adjust as needed)
+// Allow local dev origins + deployed frontend origin from env.
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
-];
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_2,
+].filter(Boolean);
 
 // Middleware
-app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser tools (curl/postman) with no origin.
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json()); // ✅ parse JSON body
 app.use(express.urlencoded({ extended: true })); // ✅ parse form-data if needed
 
@@ -38,7 +50,7 @@ app.use((req, _res, next) => {
 
 // Socket.IO setup
 const io = new Server(server, {
-  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"] },
+  cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"], credentials: true },
   transports: ["websocket", "polling"],
 });
 app.set("io", io);
