@@ -15,14 +15,23 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
+const normalizeOrigin = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
 // Allow local dev origins + deployed frontend origin from env.
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
+  "https://help-hive-psi.vercel.app",
   process.env.CLIENT_URL,
   process.env.CLIENT_URL_2,
-].filter(Boolean);
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
 // Middleware
 app.use(
@@ -30,7 +39,8 @@ app.use(
     origin: (origin, callback) => {
       // Allow non-browser tools (curl/postman) with no origin.
       if (!origin) return callback(null, true);
-      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      const requestOrigin = normalizeOrigin(origin);
+      if (ALLOWED_ORIGINS.includes(requestOrigin)) return callback(null, true);
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
