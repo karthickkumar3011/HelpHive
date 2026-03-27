@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaStar } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -11,36 +11,40 @@ const Explore = () => {
   const [posts, setPosts] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTimeout, setSearchTimeout] = useState(null);
   const navigate = useNavigate();
+  const searchTimeoutRef = useRef(null);
 
   const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
   // Debounced search function
-  const debouncedSearch = useCallback((searchTerm) => {
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-
-    const timeout = setTimeout(() => {
-      if (tab === 'users' && searchTerm.trim() !== '') {
-        setLoading(true);
-        axios.get(`${API_BASE}/api/users/search?q=${encodeURIComponent(searchTerm)}`)
-          .then(res => {
-            setUsers(res.data);
-            setLoading(false);
-          })
-          .catch(err => {
-            console.error('Error fetching users:', err);
-            setLoading(false);
-          });
-      } else if (tab === 'users') {
-        setUsers([]);
+  const debouncedSearch = useCallback(
+    (searchTerm) => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
-    }, 300);
 
-    setSearchTimeout(timeout);
-  }, [tab, API_BASE]);
+      searchTimeoutRef.current = setTimeout(() => {
+        if (tab === "users" && searchTerm.trim() !== "") {
+          setLoading(true);
+          axios
+            .get(
+              `${API_BASE}/api/users/search?q=${encodeURIComponent(searchTerm)}`
+            )
+            .then((res) => {
+              setUsers(res.data);
+              setLoading(false);
+            })
+            .catch((err) => {
+              console.error("Error fetching users:", err);
+              setLoading(false);
+            });
+        } else if (tab === "users") {
+          setUsers([]);
+        }
+      }, 300);
+    },
+    [tab, API_BASE]
+  );
 
   // Fetch posts
   useEffect(() => {
@@ -62,6 +66,12 @@ const Explore = () => {
   useEffect(() => {
     debouncedSearch(search);
   }, [search, debouncedSearch]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   const filteredPosts = posts.filter((post) => {
     const title = (post.title || "").toLowerCase();

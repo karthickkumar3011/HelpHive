@@ -13,18 +13,20 @@ import {
   MessageSquare,
   Heart,
   Bookmark,
-  TrendingUp,
-  Settings,
-  Palette,
-  BarChart3,
-  Star,
-  Trophy,
-  Zap,
-  Target,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+const ACTIVITY_STYLE = {
+  blue: { bg: "bg-blue-100", text: "text-blue-600" },
+  green: { bg: "bg-green-100", text: "text-green-600" },
+  purple: { bg: "bg-purple-100", text: "text-purple-600" },
+  orange: { bg: "bg-orange-100", text: "text-orange-600" },
+  gray: { bg: "bg-gray-100", text: "text-gray-600" },
+  red: { bg: "bg-red-100", text: "text-red-600" },
+  indigo: { bg: "bg-indigo-100", text: "text-indigo-600" },
+  yellow: { bg: "bg-yellow-100", text: "text-yellow-600" },
+};
 
 const Profile = () => {
   const { id } = useParams();
@@ -35,57 +37,50 @@ const Profile = () => {
   const [posts, setPosts] = useState([]);
   const [comments, setComments] = useState([]);
   const [helpingPosts, setHelpingPosts] = useState([]);
-  const [pinnedPosts, setPinnedPosts] = useState([]);
-  const [activityFeed, setActivityFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [postsError, setPostsError] = useState("");
 
-  // Dummy data for followers, following, activities, achievements, reputation, stats
-  const [followers, setFollowers] = useState([
-    { id: 1, name: "Alice Johnson", avatar: "https://i.pravatar.cc/150?img=1" },
-    { id: 2, name: "Bob Smith", avatar: "https://i.pravatar.cc/150?img=2" },
-    { id: 3, name: "Carol White", avatar: "https://i.pravatar.cc/150?img=3" },
-  ]);
-  const [following, setFollowing] = useState([
-    { id: 4, name: "David Lee", avatar: "https://i.pravatar.cc/150?img=4" },
-    { id: 5, name: "Eva Green", avatar: "https://i.pravatar.cc/150?img=5" },
-  ]);
-  const [activities, setActivities] = useState([
-    { id: 1, title: "Posted a new help request", timestamp: new Date(), icon: MessageSquare, color: "blue" },
-    { id: 2, title: "Commented on a post", timestamp: new Date(), icon: MessageCircle, color: "green" },
-    { id: 3, title: "Joined a new Hive", timestamp: new Date(), icon: Users, color: "purple" },
-    { id: 4, title: "Helped a user", timestamp: new Date(), icon: Heart, color: "red" },
-  ]);
-  const [achievements, setAchievements] = useState([
-    { id: 1, name: "Early Contributor", icon: Award, color: "yellow" },
-    { id: 2, name: "Top Helper", icon: Heart, color: "green" },
-    { id: 3, name: "Active Poster", icon: Users, color: "blue" },
-    { id: 4, name: "Community Builder", icon: MessageSquare, color: "purple" },
-    { id: 5, name: "Century Club", icon: Award, color: "red" },
-    { id: 6, name: "Featured Contributor", icon: Bookmark, color: "indigo" },
-  ]);
-  const [reputationScore, setReputationScore] = useState(120);
-
-  // Dummy stats data for charts
-  const postsPerMonth = [
-    { month: "Jan", posts: 3 },
-    { month: "Feb", posts: 5 },
-    { month: "Mar", posts: 2 },
-    { month: "Apr", posts: 6 },
-    { month: "May", posts: 4 },
-    { month: "Jun", posts: 7 },
-  ];
-  const helpingHoursPerMonth = [
-    { month: "Jan", hours: 10 },
-    { month: "Feb", hours: 15 },
-    { month: "Mar", hours: 8 },
-    { month: "Apr", hours: 20 },
-    { month: "May", hours: 12 },
-    { month: "Jun", hours: 18 },
-  ];
-
   const isOwnProfile =
     currentUser && String(currentUser._id || currentUser.id) === String(id);
+
+  const followers = Array.isArray(user?.followers) ? user.followers : [];
+  const following = Array.isArray(user?.following) ? user.following : [];
+  const pinnedPosts = Array.isArray(user?.pinnedPosts) ? user.pinnedPosts : [];
+
+  const reputationScore =
+    posts.length * 10 + helpingPosts.length * 5 + comments.length * 2;
+
+  const activities = [
+    {
+      id: "joined",
+      title: "Joined HelpHive",
+      timestamp: new Date(user?.createdAt || Date.now()),
+      icon: Calendar,
+      color: "blue",
+    },
+    ...(posts.length > 0
+      ? [
+          {
+            id: "first-post",
+            title: "Created a post",
+            timestamp: new Date(posts[0]?.createdAt || Date.now()),
+            icon: MessageSquare,
+            color: "green",
+          },
+        ]
+      : []),
+    ...(helpingPosts.length > 0
+      ? [
+          {
+            id: "helping",
+            title: "Helped someone",
+            timestamp: new Date(helpingPosts[0]?.createdAt || Date.now()),
+            icon: Heart,
+            color: "purple",
+          },
+        ]
+      : []),
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -406,8 +401,16 @@ const Profile = () => {
             {activities.length > 0 ? (
               activities.map((activity) => (
                 <div key={activity.id} className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-full bg-${activity.color}-100 flex items-center justify-center`}>
-                    <activity.icon size={16} className={`text-${activity.color}-600`} />
+                  <div
+                    className={[
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      (ACTIVITY_STYLE[activity.color] || ACTIVITY_STYLE.gray).bg,
+                    ].join(" ")}
+                  >
+                    <activity.icon
+                      size={16}
+                      className={(ACTIVITY_STYLE[activity.color] || ACTIVITY_STYLE.gray).text}
+                    />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{activity.title}</p>

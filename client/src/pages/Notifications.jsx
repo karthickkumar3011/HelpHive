@@ -1,5 +1,5 @@
 // src/pages/Notifications.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FiBell, FiCheck, FiTrash2, FiMessageCircle, FiUser, FiHeart, FiEdit3, FiUsers } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -11,11 +11,7 @@ const Notifications = () => {
 
   const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_BASE}/api/notifications`, {
@@ -28,7 +24,11 @@ const Notifications = () => {
       console.error('Error fetching notifications:', error);
       setLoading(false);
     }
-  };
+  }, [API_BASE]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const markAsRead = async (notificationId) => {
     try {

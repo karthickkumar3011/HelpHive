@@ -1,19 +1,22 @@
-# Update Notifications, PostHelp tag suggestions, and loading states
+# Vercel Frontend Deployment Fix Plan
 
-## Status: Completed ✅
+## Status: ESLint Build Errors
 
-## Steps:
-1. **✅** Update `client/src/pages/Notifications.jsx`: Icons + links for new types ('help_request'→post, 'hive_*'→/hives/:hiveId).
-2. **✅** Update `client/src/pages/PostHelp.jsx`: Keyword suggestions (debounced, fuzzy match presets, chips append).
-3. **✅** Enhance Home.jsx: Refresh loading state.
-4. **✅** Enhance HiveDetails.jsx: Error/hive-not-found states, refresh btn.
-5. **✅** Enhance Hives.jsx: Error state.
-6. **✅** Loading/empty/error polished across Home/Hive pages/PostHelp.
+**Information Gathered:**
+- Build failed: ESLint warnings → errors in CI
+- Files: Explore.jsx (deps), Notifications.jsx (deps), PostHelp.jsx (deps), Profile.jsx (unused)
 
-## Verification:
-- Notifications: Check new types render icons/links.
-- PostHelp: Type description → see chips → click adds to tags.
-- Refetch: Loading spinners on refresh, meaningful errors.
+**Plan:**
+1. Fix `client/src/pages/Explore.jsx`: Add `searchTimeout` to deps
+2. Fix `client/src/pages/Notifications.jsx`: Add `fetchNotifications` to deps or disable
+3. Fix `client/src/pages/PostHelp.jsx`: Add `keywordHints` dep or disable
+4. Fix `client/src/pages/Profile.jsx`: Remove unused imports/state
+5. `cd client && npm run build` test
+6. `git add . && git commit -m "Fix ESLint for Vercel" && git push` → auto-deploy
 
-**All updates complete.** Run `cd client && npm start` to test.
+**Dependent Files:** None
+
+**Followup:** Test https://helphive-community-xxx.vercel.app
+
+Approve to proceed with edits?
 

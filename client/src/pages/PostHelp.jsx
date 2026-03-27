@@ -6,6 +6,23 @@ import { TAG_SUGGESTION_LEXICON } from "../constants/tags";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
+const KEYWORD_HINTS = [
+  { keys: ["plumb", "pipe", "leak", "toilet", "sink"], tag: "plumbing" },
+  { keys: ["wire", "electric", "outlet", "light", "power"], tag: "electrical" },
+  { keys: ["garden", "lawn", "plant", "yard"], tag: "gardening" },
+  { keys: ["urgent", "emergency", "asap", "immediate"], tag: "urgenthelp" },
+  { keys: ["lost", "missing", "stolen"], tag: "lostitem" },
+  { keys: ["found", "discovered"], tag: "found" },
+  { keys: ["medical", "health", "hospital", "injury", "sick"], tag: "medical" },
+  { keys: ["money", "rent", "bill", "financial", "fund"], tag: "financial" },
+  { keys: ["donat", "charity", "give"], tag: "donation" },
+  { keys: ["advice", "help me", "how to", "guidance"], tag: "guidance" },
+  { keys: ["pet", "dog", "cat", "animal"], tag: "pet-care" },
+  { keys: ["baby", "child", "kid", "tutor", "homework"], tag: "tutoring" },
+  { keys: ["move", "moving", "truck"], tag: "moving-help" },
+  { keys: ["car", "auto", "vehicle", "tire"], tag: "auto-repair" },
+];
+
 const PostHelp = () => {
   const location = useLocation();
   const hiveId = new URLSearchParams(location.search).get("hiveId");
@@ -20,24 +37,6 @@ const PostHelp = () => {
   });
 
   const [suggestions, setSuggestions] = useState([]);
-
-  /** Simple keyword → tag hints (keyword matching “AI-style” suggestions) */
-  const keywordHints = [
-    { keys: ["plumb", "pipe", "leak", "toilet", "sink"], tag: "plumbing" },
-    { keys: ["wire", "electric", "outlet", "light", "power"], tag: "electrical" },
-    { keys: ["garden", "lawn", "plant", "yard"], tag: "gardening" },
-    { keys: ["urgent", "emergency", "asap", "immediate"], tag: "urgenthelp" },
-    { keys: ["lost", "missing", "stolen"], tag: "lostitem" },
-    { keys: ["found", "discovered"], tag: "found" },
-    { keys: ["medical", "health", "hospital", "injury", "sick"], tag: "medical" },
-    { keys: ["money", "rent", "bill", "financial", "fund"], tag: "financial" },
-    { keys: ["donat", "charity", "give"], tag: "donation" },
-    { keys: ["advice", "help me", "how to", "guidance"], tag: "guidance" },
-    { keys: ["pet", "dog", "cat", "animal"], tag: "pet-care" },
-    { keys: ["baby", "child", "kid", "tutor", "homework"], tag: "tutoring" },
-    { keys: ["move", "moving", "truck"], tag: "moving-help" },
-    { keys: ["car", "auto", "vehicle", "tire"], tag: "auto-repair" },
-  ];
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -60,7 +59,7 @@ const PostHelp = () => {
             tag.split("-").some((part) => part.length > 2 && desc.includes(part)))
       );
 
-      const fromHints = keywordHints
+      const fromHints = KEYWORD_HINTS
         .filter(
           ({ keys, tag }) =>
             !currentTags.includes(tag) &&
