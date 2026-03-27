@@ -2,15 +2,23 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { 
-  MessageSquare, 
-  ThumbsUp, 
-  CheckCircle, 
-  MessageCircle
+import {
+  MessageSquare,
+  ThumbsUp,
+  CheckCircle,
+  MessageCircle,
+  Trash2,
+  Ban,
 } from "lucide-react";
+
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const PostCard = ({ post, refreshPosts, currentUser }) => {
   const navigate = useNavigate();
+
+  const ownerId = String(post.createdBy?._id || post.createdBy || "");
+  const me = String(currentUser?._id || currentUser?.id || "");
+  const isOwner = Boolean(currentUser && ownerId && me && ownerId === me);
 
   const [isHelping, setIsHelping] = useState(false);
   const [helpers, setHelpers] = useState(post.helpers || []);
@@ -26,8 +34,8 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
   const mediaUrl = (file) => {
     if (!file) return "";
     if (file.startsWith("http")) return file;
-    if (file.startsWith("/uploads")) return `${process.env.REACT_APP_API_URL || "http://localhost:5000"}${file}`;
-    return `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/uploads/${file}`;
+    if (file.startsWith("/uploads")) return `${API_BASE}${file}`;
+    return `${API_BASE}/uploads/${file}`;
   };
 
   const getTimeAgo = (timestamp) => {
@@ -58,7 +66,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.put(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/posts/${post._id}/help`,
+        `${API_BASE}/api/posts/${post._id}/help`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -70,7 +78,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
       // Refresh user
       try {
         const userRes = await axios.get(
-          `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/auth/me`,
+          `${API_BASE}/api/auth/me`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         localStorage.setItem("user", JSON.stringify(userRes.data));
@@ -93,7 +101,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.put(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/posts/${post._id}/upvote`,
+        `${API_BASE}/api/posts/${post._id}/upvote`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -114,7 +122,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/posts/${post._id}/comment`,
+        `${API_BASE}/api/posts/${post._id}/comment`,
         { text: commentText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -130,7 +138,9 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
 
   const goToDiscuss = () => {
     if (!currentUser) return;
-    navigate(`/chat/${post._id}`);
+    const peerId = post.createdBy?._id || post.createdBy;
+    if (!peerId) return alert("Cannot open chat: missing post author.");
+    navigate(`/chat/${peerId}`);
   };
 
   const getStatusColor = (status) => {
@@ -138,6 +148,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
       case "Open": return "bg-gray-200 text-gray-800";
       case "In Progress": return "bg-yellow-200 text-yellow-800";
       case "Ongoing": return "bg-green-200 text-green-800";
+      case "Closed": return "bg-slate-200 text-slate-800";
       default: return "bg-gray-200 text-gray-800";
     }
   };
@@ -147,12 +158,54 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
       case "Open": return "Open";
       case "In Progress": return "In Progress";
       case "Ongoing": return "Ongoing";
-      default: return "Open";
+      case "Closed": return "Resolved";
+      default: return status || "Open";
+    }
+  };
+
+  const handleMarkResolved = async () => {
+    if (!isOwner || isLoading) return;
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.patch(
+        `${API_BASE}/api/posts/${post._id}/status`,
+        { status: "Closed" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPostStatus(res.data.post?.status || "Closed");
+      if (refreshPosts) refreshPosts();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Could not update status");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!isOwner || isLoading) return;
+    if (!window.confirm("Delete this post permanently? This cannot be undone.")) return;
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`${API_BASE}/api/posts/${post._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (refreshPosts) refreshPosts();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Could not delete post");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-100/50  p-6 mb-6 border border-gray-100 hover:border-gray-200 transform transition-transform duration-300">
+    <div
+      id={post._id ? `post-card-${post._id}` : undefined}
+      className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-100/50  p-6 mb-6 border border-gray-100 hover:border-gray-200 transform transition-transform duration-300"
+    >
       {/* Header */}
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
@@ -172,9 +225,35 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
             <span className="text-xs text-gray-500 font-medium">{getTimeAgo(post.createdAt)}</span>
           </div>
         </div>
-        <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusColor(postStatus)} shadow-sm`}>
-          {getStatusText(postStatus)}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusColor(postStatus)} shadow-sm`}>
+            {getStatusText(postStatus)}
+          </span>
+          {isOwner && (
+            <div className="flex flex-wrap gap-2 justify-end">
+              {postStatus !== "Closed" && (
+                <button
+                  type="button"
+                  onClick={handleMarkResolved}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-50"
+                >
+                  <Ban size={14} />
+                  Mark resolved
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDeletePost}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <h2 className="text-2xl font-bold mb-3 text-gray-900 leading-tight">{post.title}</h2>
@@ -256,7 +335,7 @@ const PostCard = ({ post, refreshPosts, currentUser }) => {
       {/* Actions */}
       <div className="flex justify-between items-center mt-6">
         <div className="flex gap-3">
-          {!isHelping && currentUser && post.createdBy?._id !== currentUser._id && (
+          {!isHelping && currentUser && !isOwner && (
             <button
               onClick={handleHelp}
               disabled={isLoading}

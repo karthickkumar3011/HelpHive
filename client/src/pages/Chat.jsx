@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import io from "socket.io-client";
 import axios from "axios";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   FiSearch,
@@ -12,9 +13,12 @@ import {
   FiCheck,
 } from "react-icons/fi";
 
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const socket = io(process.env.REACT_APP_SOCKET_URL || "http://localhost:5000");
 
 const Chat = () => {
+  const { receiverId: receiverIdParam } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -27,6 +31,7 @@ const Chat = () => {
   const [typingUsers, setTypingUsers] = useState(new Set());
 
   const userId = user?._id || user?.id;
+  const chatUserIdQuery = searchParams.get("userId");
   const lastMessageRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -34,9 +39,7 @@ const Chat = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await axios.get(
-          `${process.env.REACT_APP_API_URL}/api/users`
-        );
+        const res = await axios.get(`${API_BASE}/api/users`);
         setUsers(res.data);
         setFilteredUsers(res.data);
       } catch (error) {
@@ -69,13 +72,22 @@ const Chat = () => {
   // Socket listeners
   useEffect(() => {
     const handleReceiveMessage = (message) => {
-      if (
-        selectedUser &&
-        (message.senderId === selectedUser._id ||
-          message.receiverId === selectedUser._id)
-      ) {
-        setMessages((prev) => [...prev, message]);
-      }
+      if (!selectedUser || !message) return;
+
+      const selectedId = String(selectedUser._id);
+      const senderId = String(message.senderId);
+      const receiverId = String(message.receiverId);
+
+      if (senderId !== selectedId && receiverId !== selectedId) return;
+
+      // Avoid duplicate messages (we may optimistically add on send).
+      const messageId = message._id;
+      setMessages((prev) => {
+        if (messageId && prev.some((m) => String(m?._id) === String(messageId))) {
+          return prev;
+        }
+        return [...prev, message];
+      });
     };
 
     const handleUserOnline = (uid) => {
@@ -97,8 +109,18 @@ const Chat = () => {
     const handleMessageRead = (data) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg._id === data.messageId
+          String(msg?._id) === String(data.messageId)
             ? { ...msg, read: true, readAt: data.readAt }
+            : msg
+        )
+      );
+    };
+
+    const handleMessageDelivered = (data) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          String(msg?._id) === String(data.messageId)
+            ? { ...msg, delivered: true, deliveredAt: data.deliveredAt }
             : msg
         )
       );
@@ -109,6 +131,7 @@ const Chat = () => {
     socket.on("userTyping", handleUserTyping);
     socket.on("userStopTyping", handleUserStopTyping);
     socket.on("messageRead", handleMessageRead);
+    socket.on("messageDelivered", handleMessageDelivered);
 
     return () => {
       socket.off("receiveMessage", handleReceiveMessage);
@@ -116,6 +139,7 @@ const Chat = () => {
       socket.off("userTyping", handleUserTyping);
       socket.off("userStopTyping", handleUserStopTyping);
       socket.off("messageRead", handleMessageRead);
+      socket.off("messageDelivered", handleMessageDelivered);
     };
   }, [selectedUser]);
 
@@ -123,7 +147,7 @@ const Chat = () => {
   const fetchMessages = async (receiverId) => {
     try {
       const res = await axios.get(
-        `${process.env.REACT_APP_API_URL}/api/messages/${receiverId}`,
+        `${API_BASE}/api/messages/${receiverId}`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
@@ -131,23 +155,48 @@ const Chat = () => {
       setMessages(res.data);
 
       // Mark as read
-      const unreadIds = res.data
-        .filter((m) => !m.read && String(m.receiverId) === String(userId))
-        .map((m) => m._id);
+      const unreadIdStrings = new Set(
+        res.data
+          .filter((m) => !m.read && String(m.receiverId) === String(userId))
+          .map((m) => String(m._id))
+      );
 
-      if (unreadIds.length > 0) {
+      if (unreadIdStrings.size > 0) {
+        const unreadIds = Array.from(unreadIdStrings);
         await axios.put(
-          `${process.env.REACT_APP_API_URL}/api/messages/markAsRead`,
+          `${API_BASE}/api/messages/markAsRead`,
           { messageIds: unreadIds },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           }
+        );
+
+        // Update receiver UI immediately (server will also emit read receipts to the sender).
+        setMessages((prev) =>
+          prev.map((m) =>
+            unreadIdStrings.has(String(m?._id))
+              ? { ...m, read: true, readAt: new Date().toISOString() }
+              : m
+          )
         );
       }
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
   };
+
+  // Deep link: /chat/:receiverId or /chat?userId=
+  useEffect(() => {
+    const targetId = receiverIdParam || chatUserIdQuery;
+    if (!targetId || users.length === 0) return;
+    const match = users.find((u) => String(u._id) === String(targetId));
+    if (match) {
+      setSelectedUser(match);
+      fetchMessages(match._id);
+    }
+    // fetchMessages is stable enough for this screen; omit to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiverIdParam, chatUserIdQuery, users]);
 
   const handleSelectUser = (u) => {
     setSelectedUser(u);
@@ -165,13 +214,21 @@ const Chat = () => {
 
     try {
       const res = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/messages`,
+        `${API_BASE}/api/messages`,
         messageData,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setMessages((prev) => [...prev, res.data]);
+
+      // Optimistic update; socket listener will ignore duplicates via _id check.
+      setMessages((prev) => {
+        const messageId = res?.data?._id;
+        if (messageId && prev.some((m) => String(m?._id) === String(messageId))) {
+          return prev;
+        }
+        return [...prev, res.data];
+      });
       setNewMessage("");
       socket.emit("stopTyping", {
         senderId: userId,
@@ -371,11 +428,21 @@ const Chat = () => {
                       <div className="flex items-center justify-end space-x-1 text-xs mt-1">
                         <span>{formatTime(msg.createdAt)}</span>
                         {isSender && (
-                          <FiCheck
-                            className={`${
-                              msg.read ? "text-green-400" : "text-gray-400"
-                            }`}
-                          />
+                          <span className="flex items-center space-x-0.5">
+                            {msg.read ? (
+                              <>
+                                <FiCheck className="text-green-400" />
+                                <FiCheck className="text-green-400" />
+                              </>
+                            ) : msg.delivered ? (
+                              <>
+                                <FiCheck className="text-blue-400" />
+                                <FiCheck className="text-blue-400" />
+                              </>
+                            ) : (
+                              <FiCheck className="text-gray-400" />
+                            )}
+                          </span>
                         )}
                       </div>
                     </div>

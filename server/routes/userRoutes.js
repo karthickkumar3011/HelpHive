@@ -31,9 +31,14 @@ router.get("/:id", async (req, res) => {
   }
 
   try {
-    const user = await User.findById(id).select(
-      "_id username name email bio location interests skills createdAt"
-    );
+    const user = await User.findById(id)
+      .select(
+        "_id username name email bio avatar profession location skills createdAt helpingPosts"
+      )
+      .populate({
+        path: "helpingPosts",
+        select: "title description createdAt status",
+      });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     res.json(user);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { FaSearch, FaUser, FaMapMarkerAlt, FaCalendarAlt, FaStar } from 'react-icons/fa';
+import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaStar } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 
@@ -63,9 +63,11 @@ const Explore = () => {
     debouncedSearch(search);
   }, [search, debouncedSearch]);
 
-  const filteredPosts = posts.filter(post => {
-    const matchSearch = post.title.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = selectedCategory === 'All' || post.category === selectedCategory;
+  const filteredPosts = posts.filter((post) => {
+    const title = (post.title || "").toLowerCase();
+    const matchSearch = title.includes((search || "").toLowerCase());
+    const matchCategory =
+      selectedCategory === "All" || post.category === selectedCategory;
     return matchSearch && matchCategory;
   });
 
@@ -183,7 +185,9 @@ const Explore = () => {
                       </span>
                     </div>
 
-                    <h3 className="text-xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-3 leading-tight">
+                      {post.title || "Help request"}
+                    </h3>
                     <p className="text-gray-700 mb-4 line-clamp-3">{post.description}</p>
 
                     {post.location?.address && (
@@ -202,10 +206,11 @@ const Explore = () => {
                         <span>{post.comments?.length || 0} comments</span>
                       </div>
                       <button
+                        type="button"
                         className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                        onClick={() => navigate(`/post/${post._id}`)}
+                        onClick={() => navigate(`/?post=${post._id}`)}
                       >
-                        View Details
+                        Open in feed
                       </button>
                     </div>
                   </div>

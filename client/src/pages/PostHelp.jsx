@@ -1,8 +1,15 @@
 // src/pages/PostHelp.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import axios from "axios";
+import { useLocation, Link } from "react-router-dom";
+import { TAG_SUGGESTION_LEXICON } from "../constants/tags";
+
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const PostHelp = () => {
+  const location = useLocation();
+  const hiveId = new URLSearchParams(location.search).get("hiveId");
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -12,12 +19,72 @@ const PostHelp = () => {
     tags: "",
   });
 
+  const [suggestions, setSuggestions] = useState([]);
+
+  /** Simple keyword → tag hints (keyword matching “AI-style” suggestions) */
+  const keywordHints = [
+    { keys: ["plumb", "pipe", "leak", "toilet", "sink"], tag: "plumbing" },
+    { keys: ["wire", "electric", "outlet", "light", "power"], tag: "electrical" },
+    { keys: ["garden", "lawn", "plant", "yard"], tag: "gardening" },
+    { keys: ["urgent", "emergency", "asap", "immediate"], tag: "urgenthelp" },
+    { keys: ["lost", "missing", "stolen"], tag: "lostitem" },
+    { keys: ["found", "discovered"], tag: "found" },
+    { keys: ["medical", "health", "hospital", "injury", "sick"], tag: "medical" },
+    { keys: ["money", "rent", "bill", "financial", "fund"], tag: "financial" },
+    { keys: ["donat", "charity", "give"], tag: "donation" },
+    { keys: ["advice", "help me", "how to", "guidance"], tag: "guidance" },
+    { keys: ["pet", "dog", "cat", "animal"], tag: "pet-care" },
+    { keys: ["baby", "child", "kid", "tutor", "homework"], tag: "tutoring" },
+    { keys: ["move", "moving", "truck"], tag: "moving-help" },
+    { keys: ["car", "auto", "vehicle", "tire"], tag: "auto-repair" },
+  ];
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const desc = formData.description.trim().toLowerCase();
+      if (desc.length < 8) {
+        setSuggestions([]);
+        return;
+      }
+
+      const currentTags = formData.tags
+        .toLowerCase()
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      const fromLexicon = TAG_SUGGESTION_LEXICON.filter(
+        (tag) =>
+          !currentTags.includes(tag) &&
+          (desc.includes(tag) ||
+            tag.split("-").some((part) => part.length > 2 && desc.includes(part)))
+      );
+
+      const fromHints = keywordHints
+        .filter(
+          ({ keys, tag }) =>
+            !currentTags.includes(tag) &&
+            keys.some((k) => desc.includes(k))
+        )
+        .map((h) => h.tag);
+
+      const merged = [...new Set([...fromHints, ...fromLexicon])].slice(0, 8);
+      setSuggestions(merged);
+    }, 320);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.description, formData.tags]);
+
   const [files, setFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({});
   const [isUploading, setIsUploading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (e.target.name === 'tags') {
+      // Clear suggestions when tags change manually
+      setSuggestions([]);
+    }
   };
 
   // Handle file selection
@@ -120,7 +187,7 @@ const PostHelp = () => {
           formData.append('files', file);
         });
 
-        const uploadResponse = await axios.post(`${process.env.REACT_APP_API_URL}/api/posts/upload`, formData, {
+        const uploadResponse = await axios.post(`${API_BASE}/api/posts/upload`, formData, {
           headers: { 
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data'
@@ -138,7 +205,7 @@ const PostHelp = () => {
       }
 
       // Create post with uploaded files
-      const payload = {
+        const payload = {
         title: formData.title,
         description: formData.description,
         location: {
@@ -157,26 +224,28 @@ const PostHelp = () => {
         media: mediaUrls,
         helpers: [],
         status: "Open",
+          ...(hiveId ? { hiveIds: [hiveId] } : {}),
       };
 
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/posts/create-with-files`, payload, {
+      const res = await axios.post(`${API_BASE}/api/posts/create-with-files`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       console.log("Post created:", res.data);
       alert("Help post submitted successfully!");
 
-      // Reset form
-      setFormData({
-        title: "",
-        description: "",
-        locationAddress: "",
-        latitude: "",
-        longitude: "",
-        tags: "",
-      });
-      setFiles([]);
-      setUploadProgress({});
+  // Reset form
+  setFormData({
+    title: "",
+    description: "",
+    locationAddress: "",
+    latitude: "",
+    longitude: "",
+    tags: "",
+  });
+  setSuggestions([]);
+  setFiles([]);  
+  setUploadProgress({});
 
     } catch (error) {
       console.error("Posting help failed:", error.response?.data || error.message);
@@ -187,9 +256,26 @@ const PostHelp = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Post Help Request</h2>
-      
+    <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg border border-gray-100">
+      <h2 className="text-3xl font-bold text-gray-800 mb-2 text-center">Post Help Request</h2>
+      <p className="text-center text-sm text-gray-500 mb-6">
+        Tags are suggested from your description — tap to add.
+      </p>
+
+      {hiveId && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 text-sm flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Posting into a <strong>Hive</strong> — it will be linked to this community.
+          </span>
+          <Link
+            to={`/hives/${hiveId}`}
+            className="font-semibold text-amber-800 underline hover:text-amber-950"
+          >
+            Back to hive
+          </Link>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
         <div>
@@ -272,6 +358,29 @@ const PostHelp = () => {
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+          {/* Tag Suggestions */}
+          {suggestions.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-medium text-gray-500 mb-2">Suggested tags</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      const newTags = formData.tags
+                        ? `${formData.tags}, ${tag}`
+                        : tag;
+                      setFormData({ ...formData, tags: newTags });
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-800 text-sm rounded-full hover:bg-indigo-100 transition-colors border border-indigo-200 font-medium"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* File Upload */}

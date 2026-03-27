@@ -23,6 +23,15 @@ const messageSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
+    // Whether the receiver has an active Socket.IO session (joined room)
+    // and the server has emitted the message to them.
+    delivered: {
+      type: Boolean,
+      default: false,
+    },
+    deliveredAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

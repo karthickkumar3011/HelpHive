@@ -10,8 +10,10 @@ import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
 import Notifications from './pages/Notifications';
-import PrivateRoute from './components/PrivateRoute'; // ✅ Import PrivateRoute
-import UserProfile from './pages/UserProfile'; // ✅ Import UserProfile
+import PrivateRoute from './components/PrivateRoute';
+import ProfileRedirect from './components/ProfileRedirect';
+import Hives from './pages/Hives';
+import HiveDetails from './pages/HiveDetails';
 
 function App() {
   return (
@@ -49,7 +51,7 @@ function App() {
           path="/profile"
           element={
             <PrivateRoute>
-              <Profile />
+              <ProfileRedirect />
             </PrivateRoute>
           }
         />
@@ -58,6 +60,24 @@ function App() {
           element={
             <PrivateRoute>
               <Notifications />
+            </PrivateRoute>
+          }
+        />
+
+        {/* 🔐 Hives (communities) */}
+        <Route
+          path="/hives"
+          element={
+            <PrivateRoute>
+              <Hives />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/hives/:hiveId"
+          element={
+            <PrivateRoute>
+              <HiveDetails />
             </PrivateRoute>
           }
         />

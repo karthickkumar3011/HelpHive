@@ -23,7 +23,12 @@ const postSchema = new mongoose.Schema({
   helpers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   upvotes: { type: Number, default: 0 },
   upvoters: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  comments: [commentSchema]
+  comments: [commentSchema],
+  // Hives (communities) this post belongs to.
+  // Stored as references to Hive docs.
+  hives: [{ type: mongoose.Schema.Types.ObjectId, ref: "Hive" }]
 }, { timestamps: true });
+
+postSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Post", postSchema);

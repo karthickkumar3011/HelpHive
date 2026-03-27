@@ -1,29 +1,26 @@
 import React from "react";
+import { FEED_TAGS } from "../constants/tags";
 
-const tags = [
-  "All",
-  "LostItem",
-  "UrgentHelp",
-  "Found",
-  "Guidance",
-  "Donation",
-  "Medical",
-  "Financial",
-  "Other",
-];
-
-const TagsBar = () => {
+const TagsBar = ({ selectedTag = "All", onSelectTag = () => {} }) => {
   return (
-    <div className="overflow-x-auto w-full py-3 px-4 bg-white shadow-sm border-b">
+    <div className="overflow-x-auto w-full py-3 px-4 bg-white shadow-sm border-b rounded-lg border border-gray-100">
       <div className="flex space-x-3 w-max">
-        {tags.map((tag, idx) => (
+        {FEED_TAGS.map((tag, idx) => {
+          const active = String(tag) === String(selectedTag);
+          return (
           <button
             key={idx}
-            className="bg-gray-100 hover:bg-blue-100 text-gray-700 text-sm px-3 py-1 rounded-full whitespace-nowrap"
+            onClick={() => onSelectTag(tag)}
+            className={`text-sm px-3 py-1 rounded-full whitespace-nowrap transition-colors ${
+              active
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-gray-100 hover:bg-blue-100 text-gray-700"
+            }`}
           >
             #{tag}
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

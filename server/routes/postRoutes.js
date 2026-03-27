@@ -3,15 +3,111 @@ const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
 const User = require('../models/User');
+const Hive = require("../models/Hive");
 const authenticateToken = require('../middleware/authMiddleware');
 const { uploadMultiple } = require('../middleware/uploadMiddleware');
+const mongoose = require("mongoose");
+
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// -----------------------------
+// GET POSTS BY USER (author = createdBy in schema)
+// -----------------------------
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    const posts = await Post.find({ createdBy: userId })
+      .sort({ createdAt: -1 })
+      .populate("createdBy", "username avatar")
+      .populate("helpers", "username avatar")
+      .populate("comments.user", "username avatar");
+
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
+    res
+      .status(500)
+      .json({ message: "Server error while fetching user posts", error: error.message });
+  }
+});
+
+// -----------------------------
+// GET NEARBY POSTS (before generic GET /)
+// -----------------------------
+router.get("/nearby", authenticateToken, async (req, res) => {
+  try {
+    const { lat, lng, maxDistance = 5000 } = req.query;
+    if (!lat || !lng) return res.status(400).json({ message: "Latitude and longitude required" });
+
+    const posts = await Post.find({
+      "location.coordinates": {
+        $nearSphere: {
+          $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
+          $maxDistance: parseInt(maxDistance, 10),
+        },
+      },
+    })
+      .populate("createdBy", "username avatar")
+      .populate("helpers", "username avatar")
+      .populate("comments.user", "username avatar");
+
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error("Error fetching nearby posts:", error);
+    res.status(500).json({ message: "Failed to fetch nearby posts", error: error.message });
+  }
+});
 
 // -----------------------------
 // CREATE NEW POST
 // -----------------------------
 router.post("/", authenticateToken, async (req, res) => {
   try {
-    const { title, description, location, category, image, video, tags } = req.body;
+    const { title, description, location, category, image, video, tags, hiveIds } = req.body;
+
+    const normalizedTags = Array.isArray(tags)
+      ? tags
+      : tags && typeof tags === "string"
+        ? tags.split(",")
+        : [];
+
+    const cleanTags = normalizedTags
+      .map((t) =>
+        t === null || t === undefined ? "" : String(t).trim().toLowerCase()
+      )
+      .filter(Boolean);
+
+    const requestedHiveIds = Array.isArray(hiveIds) ? hiveIds : [];
+    const validRequestedHiveIds = requestedHiveIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
+
+    let resolvedHiveIds = validRequestedHiveIds;
+    if (resolvedHiveIds.length === 0 && cleanTags.length > 0) {
+      const userId = req.user.id;
+      const hiveDocs = await Promise.all(
+        cleanTags.map(async (tagName) =>
+          Hive.findOneAndUpdate(
+            { name: tagName },
+            {
+              $setOnInsert: {
+                name: tagName,
+                description: "",
+                createdBy: userId,
+                members: [userId],
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          )
+        )
+      );
+      resolvedHiveIds = hiveDocs.map((h) => h._id);
+    }
 
     const newPost = new Post({
       title,
@@ -21,7 +117,8 @@ router.post("/", authenticateToken, async (req, res) => {
       media: [],
       status: "Open",
       helpers: [],
-      tags: tags || [],
+      tags: cleanTags,
+      hives: resolvedHiveIds,
       upvotes: 0,
       upvoters: [],
       comments: [],
@@ -32,6 +129,41 @@ router.post("/", authenticateToken, async (req, res) => {
     if (video) newPost.media.push(video);
 
     const savedPost = await newPost.save();
+
+    // Notify hive members for this post (if it belongs to any hives).
+    if (Array.isArray(resolvedHiveIds) && resolvedHiveIds.length > 0) {
+      const { createNotification } = require("../controllers/notificationController");
+
+      const hiveDocs = await Hive.find({ _id: { $in: resolvedHiveIds } })
+        .select("name members createdBy");
+
+      const authorIdStr = String(req.user.id);
+      const senderName = req.user?.username || req.user?.name || "Someone";
+
+      await Promise.all(
+        hiveDocs.map((hive) => {
+          const recipientIds = (hive.members || []).filter(
+            (memberId) => String(memberId) !== authorIdStr
+          );
+
+          return Promise.all(
+            recipientIds.map((recipientId) =>
+              createNotification(
+                recipientId,
+                req.user.id,
+                "hive_post",
+                "New Hive Post",
+                `${senderName} posted in ${hive.name}: "${savedPost.title}"`,
+                savedPost._id,
+                null,
+                hive._id
+              )
+            )
+          );
+        })
+      );
+    }
+
     await savedPost.populate('createdBy', 'username avatar');
 
     res.status(201).json(savedPost);
@@ -46,7 +178,15 @@ router.post("/", authenticateToken, async (req, res) => {
 // -----------------------------
 router.get("/", async (req, res) => {
   try {
-    const posts = await Post.find()
+    const { tag } = req.query;
+    const filter = {};
+
+    if (tag && String(tag).trim()) {
+      const normalizedTag = String(tag).trim().toLowerCase();
+      filter.tags = new RegExp(`^${escapeRegex(normalizedTag)}$`, "i");
+    }
+
+    const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .populate('createdBy', 'username avatar')
       .populate('helpers', 'username avatar')
@@ -184,29 +324,56 @@ router.put("/:id/upvote", authenticateToken, async (req, res) => {
 });
 
 // -----------------------------
-// GET NEARBY POSTS
+// UPDATE STATUS (author only)
 // -----------------------------
-router.get("/nearby", authenticateToken, async (req, res) => {
+router.patch("/:id/status", authenticateToken, async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 5000 } = req.query; // meters
-    if (!lat || !lng) return res.status(400).json({ message: "Latitude and longitude required" });
+    const allowed = ["Open", "In Progress", "Ongoing", "Closed"];
+    const { status } = req.body;
+    if (!status || !allowed.includes(status)) {
+      return res.status(400).json({ message: `Status must be one of: ${allowed.join(", ")}` });
+    }
 
-    const posts = await Post.find({
-      "location.coordinates": {
-        $nearSphere: {
-          $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
-          $maxDistance: parseInt(maxDistance)
-        }
-      }
-    })
-      .populate('createdBy', 'username avatar')
-      .populate('helpers', 'username avatar')
-      .populate('comments.user', 'username avatar');
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (post.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the author can update this post" });
+    }
 
-    res.status(200).json(posts);
+    post.status = status;
+    await post.save();
+    await post.populate("createdBy", "username avatar");
+    await post.populate("helpers", "username avatar");
+    await post.populate("comments.user", "username avatar");
+
+    res.json({ message: "Status updated", post });
   } catch (error) {
-    console.error("Error fetching nearby posts:", error);
-    res.status(500).json({ message: "Failed to fetch nearby posts", error: error.message });
+    console.error("Error updating post status:", error);
+    res.status(500).json({ message: "Failed to update status", error: error.message });
+  }
+});
+
+// -----------------------------
+// DELETE POST (author only)
+// -----------------------------
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (post.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only the author can delete this post" });
+    }
+
+    await Post.findByIdAndDelete(req.params.id);
+    await User.updateMany(
+      { helpingPosts: req.params.id },
+      { $pull: { helpingPosts: req.params.id } }
+    );
+
+    res.json({ message: "Post deleted" });
+  } catch (error) {
+    console.error("Error deleting post:", error);
+    res.status(500).json({ message: "Failed to delete post", error: error.message });
   }
 });
 
@@ -238,7 +405,7 @@ router.post("/upload", authenticateToken, uploadMultiple('files'), async (req, r
 // -----------------------------
 router.post("/create-with-files", authenticateToken, async (req, res) => {
   try {
-    const { title, description, location, category, tags, media } = req.body;
+    const { title, description, location, category, tags, media, hiveIds } = req.body;
     
     // Parse location if it's a string
     let locationData;
@@ -252,6 +419,46 @@ router.post("/create-with-files", authenticateToken, async (req, res) => {
       };
     }
 
+    const normalizedTags =
+      tags && typeof tags === "string"
+        ? tags.split(",").map((t) => t.trim())
+        : Array.isArray(tags)
+          ? tags
+          : [];
+
+    const cleanTags = normalizedTags
+      .map((t) =>
+        t === null || t === undefined ? "" : String(t).trim().toLowerCase()
+      )
+      .filter(Boolean);
+
+    const requestedHiveIds = Array.isArray(hiveIds) ? hiveIds : [];
+    const validRequestedHiveIds = requestedHiveIds.filter((id) =>
+      mongoose.Types.ObjectId.isValid(id)
+    );
+
+    let resolvedHiveIds = validRequestedHiveIds;
+    if (resolvedHiveIds.length === 0 && cleanTags.length > 0) {
+      const userId = req.user.id;
+      const hiveDocs = await Promise.all(
+        cleanTags.map(async (tagName) =>
+          Hive.findOneAndUpdate(
+            { name: tagName },
+            {
+              $setOnInsert: {
+                name: tagName,
+                description: "",
+                createdBy: userId,
+                members: [userId],
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          )
+        )
+      );
+      resolvedHiveIds = hiveDocs.map((h) => h._id);
+    }
+
     const newPost = new Post({
       title,
       description,
@@ -260,7 +467,8 @@ router.post("/create-with-files", authenticateToken, async (req, res) => {
       media: media || [],
       status: "Open",
       helpers: [],
-      tags: tags && typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(t => t) : [],
+      tags: cleanTags,
+      hives: resolvedHiveIds,
       upvotes: 0,
       upvoters: [],
       comments: [],
@@ -268,6 +476,41 @@ router.post("/create-with-files", authenticateToken, async (req, res) => {
     });
 
     const savedPost = await newPost.save();
+
+    // Notify hive members for this post (if it belongs to any hives).
+    if (Array.isArray(resolvedHiveIds) && resolvedHiveIds.length > 0) {
+      const { createNotification } = require("../controllers/notificationController");
+
+      const hiveDocs = await Hive.find({ _id: { $in: resolvedHiveIds } })
+        .select("name members createdBy");
+
+      const authorIdStr = String(req.user.id);
+      const senderName = req.user?.username || req.user?.name || "Someone";
+
+      await Promise.all(
+        hiveDocs.map((hive) => {
+          const recipientIds = (hive.members || []).filter(
+            (memberId) => String(memberId) !== authorIdStr
+          );
+
+          return Promise.all(
+            recipientIds.map((recipientId) =>
+              createNotification(
+                recipientId,
+                req.user.id,
+                "hive_post",
+                "New Hive Post",
+                `${senderName} posted in ${hive.name}: "${savedPost.title}"`,
+                savedPost._id,
+                null,
+                hive._id
+              )
+            )
+          );
+        })
+      );
+    }
+
     await savedPost.populate('createdBy', 'username avatar');
 
     res.status(201).json(savedPost);

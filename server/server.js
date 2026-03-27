@@ -1,12 +1,13 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 
-dotenv.config();
+// Root .env (repo) first so MONGO_URI/JWT match monorepo config; server/.env fills only unset keys.
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 const Message = require("./models/Message");
 
@@ -17,6 +18,7 @@ const PORT = process.env.PORT || 5000;
 // Allow both React dev servers (adjust as needed)
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5173",
 ];
 
@@ -50,6 +52,7 @@ const postRoutes = require("./routes/postRoutes");
 const userRoutes = require("./routes/userRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const hiveRoutes = require("./routes/hiveRoutes");
 
 io.on("connection", (socket) => {
   console.log("🟢 User connected:", socket.id);
@@ -100,13 +103,14 @@ app.use("/api/posts", postRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/hives", hiveRoutes);
 
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+const connectDB = require("./config/connectDB");
 
-server.listen(PORT, () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-);
+connectDB()
+  .then(() => {
+    server.listen(PORT, () =>
+      console.log(`🚀 Server running on http://localhost:${PORT}`)
+    );
+  })
+  .catch(() => process.exit(1));

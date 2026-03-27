@@ -7,13 +7,13 @@ import { TbMessagePlus } from "react-icons/tb";
 import { io } from "socket.io-client";
 import axios from "axios";
 import logo from "../assets/helpHive_logo.png";
+import { Users } from "lucide-react";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [socket, setSocket] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,27 +51,18 @@ const Navbar = () => {
     if (isLoggedIn && user) {
       fetchUnreadCount();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, user]);
 
   // Set up Socket.IO for real-time notifications
   useEffect(() => {
-    if (isLoggedIn && user) {
-      const newSocket = io(API_BASE);
-      setSocket(newSocket);
-
-      // Join user's room for notifications
-      newSocket.emit('joinRoom', user._id || user.id);
-
-      // Listen for new notifications
-      newSocket.on('newNotification', (data) => {
-        console.log('New notification received:', data);
-        setUnreadNotifications(prev => prev + 1);
-      });
-
-      return () => {
-        newSocket.disconnect();
-      };
-    }
+    if (!isLoggedIn || !user) return;
+    const newSocket = io(API_BASE);
+    newSocket.emit("joinRoom", user._id || user.id);
+    newSocket.on("newNotification", () => {
+      setUnreadNotifications((prev) => prev + 1);
+    });
+    return () => newSocket.disconnect();
   }, [isLoggedIn, user, API_BASE]);
 
   const fetchUnreadCount = async () => {
@@ -97,13 +88,6 @@ const Navbar = () => {
   };
 
   const closeMenu = () => setMenuOpen(false);
-
-  const handleProfileNavigation = () => {
-    closeMenu();
-    if (user && (user._id || user.id)) {
-      navigate(`/profile/${user._id || user.id}`);
-    }
-  };
 
   const renderUserProfile = () => (
     <Link
@@ -140,6 +124,9 @@ const Navbar = () => {
           </Link>
           <Link to="/explore" className="flex items-center gap-1 text-gray-700 hover:text-blue-600">
             <RiCompassLine /> Explore
+          </Link>
+          <Link to="/hives" className="flex items-center gap-1 text-gray-700 hover:text-blue-600">
+            <Users size={18} /> Hives
           </Link>
           <Link to="/post-help" className="flex items-center gap-1 text-gray-700 hover:text-blue-600">
             <TbMessagePlus /> Post Help
@@ -198,6 +185,9 @@ const Navbar = () => {
           </Link>
           <Link to="/explore" onClick={closeMenu} className="block text-gray-700 hover:text-blue-600">
             Explore
+          </Link>
+          <Link to="/hives" onClick={closeMenu} className="block text-gray-700 hover:text-blue-600">
+            Hives
           </Link>
           <Link to="/post-help" onClick={closeMenu} className="block text-gray-700 hover:text-blue-600">
             Post Help

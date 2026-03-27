@@ -13,7 +13,16 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['message', 'comment', 'like', 'follow', 'help_request', 'connection'],
+    enum: [
+      'message',
+      'comment',
+      'like',
+      'follow',
+      'help_request',
+      'connection',
+      'hive_join',
+      'hive_post'
+    ],
     required: true
   },
   title: {
@@ -31,6 +40,10 @@ const notificationSchema = new mongoose.Schema({
   relatedHelp: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Help'
+  },
+  relatedHive: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Hive'
   },
   isRead: {
     type: Boolean,

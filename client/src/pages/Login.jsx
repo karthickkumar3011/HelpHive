@@ -2,11 +2,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export default function Login() {
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -17,12 +21,13 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/login`, form);
+      const res = await axios.post(`${API_BASE}/api/auth/login`, form);
       const { token, user } = res.data;
-
-      // Save token and user in localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      const normalized = {
+        ...user,
+        _id: user._id || user.id,
+      };
+      login(normalized, token);
 
       navigate('/'); // redirect to home page
     } catch (err) {
@@ -75,9 +80,13 @@ export default function Login() {
         {/* Register link */}
         <p className="text-sm text-center text-gray-500 mt-4">
           Don’t have an account?{' '}
-          <a href="/register" className="text-green-600 hover:underline">
+          <button
+            type="button"
+            onClick={() => navigate('/register')}
+            className="text-green-600 hover:underline font-medium"
+          >
             Register
-          </a>
+          </button>
         </p>
       </form>
     </div>

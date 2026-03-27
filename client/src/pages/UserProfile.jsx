@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const UserProfile = () => {
   const { id } = useParams();
   const [user, setUser] = useState(null);
@@ -9,7 +11,7 @@ const UserProfile = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/users/${id}`);
+        const res = await axios.get(`${API_BASE}/api/users/${id}`);
         setUser(res.data);
       } catch (error) {
         console.error('Failed to fetch user:', error);

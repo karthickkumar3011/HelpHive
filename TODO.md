@@ -1,30 +1,19 @@
-# PostCard UI Enhancement Tasks
+# Update Notifications, PostHelp tag suggestions, and loading states
 
-- [x] Update card container with modern styling (gradients, shadows, hover effects)
-- [x] Enhance header layout and avatar styling
-- [x] Improve typography and spacing throughout
-- [x] Modernize media display with better grid and hover effects
-- [x] Style action buttons with modern design and icons
-- [x] Improve comments section with collapsible design
-- [x] Add subtle animations and transitions
+## Status: Completed ✅
 
-# Explore Page Enhancements
-- [x] Improve user search functionality with modern UI
-- [x] Add user avatars and better profile information display
-- [x] Implement debounced search with loading states
-- [x] Enhance overall styling with gradients and animations
-- [x] Add better responsive design for user cards
-- [x] Fix React infinite loop error in debounced search
+## Steps:
+1. **✅** Update `client/src/pages/Notifications.jsx`: Icons + links for new types ('help_request'→post, 'hive_*'→/hives/:hiveId).
+2. **✅** Update `client/src/pages/PostHelp.jsx`: Keyword suggestions (debounced, fuzzy match presets, chips append).
+3. **✅** Enhance Home.jsx: Refresh loading state.
+4. **✅** Enhance HiveDetails.jsx: Error/hive-not-found states, refresh btn.
+5. **✅** Enhance Hives.jsx: Error state.
+6. **✅** Loading/empty/error polished across Home/Hive pages/PostHelp.
 
-# Notification System Implementation
-- [x] Create Notification model with MongoDB schema
-- [x] Implement notification controller with CRUD operations
-- [x] Create notification routes with authentication
-- [x] Integrate notifications with message sending
-- [x] Update frontend Notifications page with real data
-- [x] Add real-time notifications via Socket.IO
-- [x] Update Navbar with notification count badge
-- [x] Implement mark as read and delete functionality
-- [x] Add notifications for post comments
-- [x] Add notifications for post upvotes/likes
-- [x] Add notifications for help requests on posts
+## Verification:
+- Notifications: Check new types render icons/links.
+- PostHelp: Type description → see chips → click adds to tags.
+- Refetch: Loading spinners on refresh, meaningful errors.
+
+**All updates complete.** Run `cd client && npm start` to test.
+

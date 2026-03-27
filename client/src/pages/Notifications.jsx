@@ -1,6 +1,6 @@
 // src/pages/Notifications.jsx
 import React, { useState, useEffect } from 'react';
-import { FiBell, FiCheck, FiTrash2, FiMessageCircle, FiUser, FiHeart } from 'react-icons/fi';
+import { FiBell, FiCheck, FiTrash2, FiMessageCircle, FiUser, FiHeart, FiEdit3, FiUsers } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -81,9 +81,14 @@ const Notifications = () => {
         return <FiMessageCircle className="text-green-500" />;
       case 'like':
         return <FiHeart className="text-red-500" />;
+      case 'help_request':
+        return <FiEdit3 className="text-orange-500" />;
       case 'follow':
       case 'connection':
         return <FiUser className="text-purple-500" />;
+      case 'hive_join':
+      case 'hive_post':
+        return <FiUsers className="text-indigo-500" />;
       default:
         return <FiBell className="text-gray-500" />;
     }
@@ -96,9 +101,14 @@ const Notifications = () => {
       case 'comment':
       case 'like':
         return notification.relatedPost ? `/post/${notification.relatedPost._id}` : '#';
+      case 'help_request':
+        return notification.relatedPost ? `/post/${notification.relatedPost._id}` : '#';
       case 'follow':
       case 'connection':
         return `/profile/${notification.sender._id}`;
+      case 'hive_join':
+      case 'hive_post':
+        return notification.relatedHive ? `/hives/${notification.relatedHive._id}` : '#';
       default:
         return '#';
     }

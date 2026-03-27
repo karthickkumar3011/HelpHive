@@ -10,10 +10,15 @@ const sendMessage = async (req, res) => {
       return res.status(400).json({ error: "receiverId and text are required" });
     }
 
+    const receiverOnline =
+      io?.sockets?.adapter?.rooms?.get(String(receiverId))?.size > 0;
+
     const message = new Message({
       senderId: req.user._id,
       receiverId,
       text,
+      delivered: receiverOnline,
+      deliveredAt: receiverOnline ? new Date() : undefined,
     });
     await message.save();
 
@@ -30,6 +35,14 @@ const sendMessage = async (req, res) => {
     if (io) {
       io.to(String(receiverId)).emit("receiveMessage", message);
       io.to(String(req.user._id)).emit("receiveMessage", message);
+
+      if (receiverOnline) {
+        // Tell the sender the message reached the receiver client.
+        io.to(String(req.user._id)).emit("messageDelivered", {
+          messageId: message._id,
+          deliveredAt: message.deliveredAt,
+        });
+      }
     }
 
     res.status(201).json(message);

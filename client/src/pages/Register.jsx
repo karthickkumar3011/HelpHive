@@ -1,8 +1,14 @@
 // client/src/pages/Register.jsx
 import React, { useState } from "react";
 import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const Register = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: "",
     name: "",
@@ -91,8 +97,15 @@ const Register = () => {
         },
       };
 
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/register`, payload);
+      const res = await axios.post(`${API_BASE}/api/auth/register`, payload);
       setMessage(res.data.message || "User registered successfully!");
+
+      if (res.data.token && res.data.user) {
+        const u = res.data.user;
+        login({ ...u, _id: u._id || u.id }, res.data.token);
+        navigate("/");
+        return;
+      }
 
       setFormData({
         username: "",
@@ -109,7 +122,9 @@ const Register = () => {
     } catch (err) {
       console.error("Registration error:", err.response?.data || err.message);
       setMessage(
-        err.response?.data?.error || "Something went wrong during registration"
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Something went wrong during registration"
       );
     }
   };
@@ -242,7 +257,21 @@ const Register = () => {
           Register
         </button>
 
-        {message && <p className="text-center text-red-500">{message}</p>}
+        {message && (
+          <p
+            className={`text-center text-sm ${
+              message.toLowerCase().includes("success") ? "text-green-600" : "text-red-500"
+            }`}
+          >
+            {message}
+          </p>
+        )}
+        <p className="text-sm text-center text-gray-500">
+          Already have an account?{" "}
+          <Link to="/login" className="text-blue-600 hover:underline">
+            Login
+          </Link>
+        </p>
       </form>
     </div>
   );

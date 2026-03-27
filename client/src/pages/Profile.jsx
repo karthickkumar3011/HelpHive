@@ -38,6 +38,7 @@ const Profile = () => {
   const [pinnedPosts, setPinnedPosts] = useState([]);
   const [activityFeed, setActivityFeed] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [postsError, setPostsError] = useState("");
 
   // Dummy data for followers, following, activities, achievements, reputation, stats
   const [followers, setFollowers] = useState([
@@ -83,40 +84,47 @@ const Profile = () => {
     { month: "Jun", hours: 18 },
   ];
 
-  const isOwnProfile = currentUser && currentUser._id === id;
+  const isOwnProfile =
+    currentUser && String(currentUser._id || currentUser.id) === String(id);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) return;
       try {
         setLoading(true);
+        setPostsError("");
 
-        // Fetch user details
         const userRes = await axios.get(`${API_BASE}/api/users/${id}`);
         setUser(userRes.data);
 
-        // Fetch user's posts
-        const postsRes = await axios.get(`${API_BASE}/api/posts/user/${id}`);
-        setPosts(postsRes.data);
-
-        // Fetch user's comments (assuming endpoint exists or fetch from posts)
-        // For now, we'll simulate or skip if not available
-        setComments([]);
-
-        // Fetch helping posts
-        if (userRes.data.helpingPosts) {
+        if (Array.isArray(userRes.data.helpingPosts)) {
           setHelpingPosts(userRes.data.helpingPosts);
+        } else {
+          setHelpingPosts([]);
         }
 
+        setComments([]);
+
+        try {
+          const postsRes = await axios.get(`${API_BASE}/api/posts/user/${id}`);
+          setPosts(Array.isArray(postsRes.data) ? postsRes.data : []);
+        } catch (postErr) {
+          console.error("Error fetching user posts:", postErr);
+          setPosts([]);
+          setPostsError(
+            postErr.response?.data?.message ||
+              "Could not load posts. Try again later."
+          );
+        }
       } catch (error) {
         console.error("Error fetching profile data:", error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchData();
-    }
+    fetchData();
   }, [id]);
 
   const handleMessage = () => {
@@ -215,7 +223,7 @@ const Profile = () => {
                         Message
                       </button>
                       <button
-                        onClick={() => alert("Join Hive feature coming soon")}
+                        onClick={() => navigate("/hives")}
                         className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-lg font-semibold transition"
                       >
                         <Users size={18} />
@@ -522,13 +530,18 @@ const Profile = () => {
           <div className="p-6">
             {activeTab === "posts" && (
               <div>
+                {postsError && (
+                  <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {postsError}
+                  </div>
+                )}
                 {posts.length > 0 ? (
                   <div className="space-y-4">
                     {posts.map((post) => (
                       <div key={post._id} className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition">
-                        <h3 className="font-semibold text-gray-900 mb-2">{post.title}</h3>
-                        <p className="text-gray-700 mb-3">{post.description}</p>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <h3 className="font-semibold text-gray-900 mb-2">{post.title || "Untitled"}</h3>
+                        <p className="text-gray-700 mb-3 line-clamp-3">{post.description}</p>
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                           {post.status && (
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -539,12 +552,19 @@ const Profile = () => {
                               {post.status}
                             </span>
                           )}
+                          {(post.tags || []).length > 0 && (
+                            <span className="text-xs text-blue-600">
+                              {(post.tags || []).slice(0, 4).map((t) => `#${t}`).join(" ")}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-8">No posts yet</p>
+                  !postsError && (
+                    <p className="text-gray-500 text-center py-8">No posts yet</p>
+                  )
                 )}
               </div>
             )}

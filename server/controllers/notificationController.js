@@ -10,6 +10,7 @@ const getNotifications = async (req, res) => {
       .populate('sender', 'name username avatar')
       .populate('relatedPost', 'title')
       .populate('relatedHelp', 'title')
+      .populate('relatedHive', 'name')
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -70,7 +71,16 @@ const markAllAsRead = async (req, res) => {
 };
 
 // Create a new notification
-const createNotification = async (recipientId, senderId, type, title, message, relatedPost = null, relatedHelp = null) => {
+const createNotification = async (
+  recipientId,
+  senderId,
+  type,
+  title,
+  message,
+  relatedPost = null,
+  relatedHelp = null,
+  relatedHive = null
+) => {
   try {
     // Don't create notification for self-actions
     if (recipientId.toString() === senderId.toString()) {
@@ -84,7 +94,8 @@ const createNotification = async (recipientId, senderId, type, title, message, r
       title,
       message,
       relatedPost,
-      relatedHelp
+      relatedHelp,
+      relatedHive
     });
 
     await notification.save();
