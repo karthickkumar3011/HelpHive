@@ -112,8 +112,6 @@ MONGO_URI, JWT_SECRET required
 2. Create feature branch
 3. PR to `main`
 
-## 📄 License
-MIT - See [LICENSE](LICENSE) (create if needed)
 
 ## 👥 Contact
 **Karthick Kumar** - [@karthickkumar3011](https://github.com/karthickkumar3011)
